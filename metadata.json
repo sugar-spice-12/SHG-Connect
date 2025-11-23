@@ -1,0 +1,8 @@
+{
+  "name": "Copy of SHG Connect",
+  "description": "A premium, offline-first financial record-keeping app for Self-Help Groups in rural India. Features dark mode, glassmorphism, and simplified workflows.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
