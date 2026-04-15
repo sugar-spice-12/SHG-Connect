@@ -4,6 +4,9 @@ import { Mail, ArrowRight, ShieldCheck, Lock, AlertCircle, Shield } from 'lucide
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
+const OTP_LEN = 8;
+const isCompleteOtp = (value: string) => value.length === OTP_LEN;
+
 export const LoginScreen: React.FC = () => {
   const { login, verifyOtp, otpAttempts, isOtpBlocked, otpBlockedUntil } = useAuth();
 
@@ -115,9 +118,9 @@ export const LoginScreen: React.FC = () => {
       return;
     }
     
-    if (otp.length !== 6) {
-      setError("Please enter the complete 6-digit OTP");
-      toast.error("Enter 6-digit OTP");
+    if (!isCompleteOtp(otp)) {
+      setError(`Enter the full ${OTP_LEN}-digit code from your email`);
+      toast.error(`Enter the complete ${OTP_LEN}-digit code`);
       return;
     }
 
@@ -233,7 +236,7 @@ export const LoginScreen: React.FC = () => {
 
               <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
                 <p className="text-xs text-blue-200">
-                  💡 <strong>Note:</strong> We'll send a 6-digit OTP to your email. Check your inbox (and spam folder) after clicking "Get OTP".
+                  💡 <strong>Note:</strong> We&apos;ll email you an {OTP_LEN}-digit code. Check your inbox and spam folder after clicking &quot;Get OTP&quot;.
                 </p>
               </div>
 
@@ -312,8 +315,8 @@ export const LoginScreen: React.FC = () => {
                   }}
                   onKeyPress={(e) => handleKeyPress(e, handleVerify)}
                   className="w-48 text-center text-3xl tracking-[0.3em] bg-transparent border-b-2 border-white/20 focus:border-blue-500 outline-none text-white py-2 font-mono"
-                  placeholder="••••••"
-                  maxLength={6}
+                  placeholder="••••••••"
+                  maxLength={OTP_LEN}
                   disabled={isLoading || isOtpBlocked}
                   autoFocus
                 />
@@ -321,7 +324,7 @@ export const LoginScreen: React.FC = () => {
 
               <button 
                 onClick={handleVerify}
-                disabled={isLoading || otp.length !== 6 || isOtpBlocked}
+                disabled={isLoading || !isCompleteOtp(otp) || isOtpBlocked}
                 className="w-full h-12 bg-white text-black rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (

@@ -39,6 +39,7 @@ const SECURITY_STORAGE_KEY = "shakti_security_v2";
 const MAX_OTP_ATTEMPTS = 5;
 const OTP_BLOCK_DURATION = 15 * 60 * 1000; // 15 minutes
 const MAX_OTP_REQUESTS_PER_HOUR = 5;
+const EMAIL_OTP_DIGITS = 8;
 const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes of inactivity
 
 // Simple encryption for local storage
@@ -429,10 +430,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const sanitizedEmail = sanitizeEmail(email);
-    const sanitizedOtp = otp.replace(/\D/g, "").slice(0, 6);
+    const sanitizedOtp = otp.replace(/\D/g, "").slice(0, EMAIL_OTP_DIGITS);
 
-    if (sanitizedOtp.length !== 6) {
-      toast.error("Please enter a valid 6-digit OTP");
+    if (sanitizedOtp.length !== EMAIL_OTP_DIGITS) {
+      toast.error(`Enter the full ${EMAIL_OTP_DIGITS}-digit code from your email`);
       return false;
     }
 
