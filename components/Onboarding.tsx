@@ -1,7 +1,7 @@
 // src/components/Onboarding.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Shield, Users, Zap } from 'lucide-react';
+import { ChevronRight, Shield, Users, Zap, Fingerprint, Smartphone, Check } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -22,17 +22,16 @@ const slides = [
         id: 3,
         icon: Shield,
         title: "Bank-Grade Security",
-        desc: "Your financial data is encrypted and protected with PIN and Biometric lock. Your privacy is our priority."
+        desc: "Your financial data is encrypted and protected with your device's fingerprint, face, or PIN lock."
     }
 ];
 
 export const Onboarding: React.FC = () => {
-  const { completeOnboarding, showPinSetup, setupSecurity } = useAuth();
+  const { completeOnboarding, enableAppLock, isBiometricSupported } = useAuth();
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [pin, setPin] = useState("");
-  const [confirmPin, setConfirmPin] = useState("");
-  const [showPinScreen, setShowPinScreen] = useState(false);
+  const [showSecuritySetup, setShowSecuritySetup] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [securityEnabled, setSecurityEnabled] = useState(false);
 
   const nextSlide = async () => {
     if (isProcessing) return;
@@ -40,14 +39,11 @@ export const Onboarding: React.FC = () => {
     if (currentSlide < slides.length - 1) {
       setCurrentSlide(c => c + 1);
     } else {
-      // Last slide - complete onboarding
+      // Last slide - complete onboarding and show security setup
       setIsProcessing(true);
       try {
         await completeOnboarding();
-        // After onboarding is complete, check if PIN setup is needed
-        if (showPinSetup) {
-          setShowPinScreen(true);
-        }
+        setShowSecuritySetup(true);
       } catch (error) {
         console.error("Error completing onboarding:", error);
         toast.error("Failed to complete onboarding");
@@ -57,83 +53,130 @@ export const Onboarding: React.FC = () => {
     }
   };
 
-  const handlePinSetup = () => {
-    if (pin.length < 4) {
-      toast.error("PIN must be at least 4 digits");
-      return;
-    }
+  const handleEnableSecurity = async () => {
+    if (isProcessing) return;
     
-    if (pin !== confirmPin) {
-      toast.error("PINs do not match");
-      return;
+    setIsProcessing(true);
+    try {
+      const success = await enableAppLock();
+      if (success) {
+        setSecurityEnabled(true);
+        // Auto-close after success
+        setTimeout(() => {
+          setShowSecuritySetup(false);
+        }, 1500);
+      }
+    } catch (error) {
+      console.error("Error enabling security:", error);
+    } finally {
+      setIsProcessing(false);
     }
-    
-    setupSecurity(pin, false); // biometric disabled
-    toast.success("PIN setup complete!");
   };
 
-  const handleSkipPin = () => {
-    // Setup with empty PIN (no PIN protection)
-    setupSecurity("", false);
+  const handleSkipSecurity = () => {
+    setShowSecuritySetup(false);
+    toast("You can enable app lock later in Settings", { icon: "💡" });
   };
 
   const Icon = slides[currentSlide].icon;
 
-  // PIN Setup Screen
-  if (showPinScreen) {
+  // Security Setup Screen
+  if (showSecuritySetup) {
     return (
       <div className="fixed inset-0 z-50 bg-[#0D0D0F] flex flex-col items-center justify-center p-6">
-        <div className="w-full max-w-md flex-1 flex flex-col justify-center">
-          <div className="text-center mb-8">
-            <div className="w-20 h-20 mx-auto bg-gradient-to-tr from-blue-600/20 to-purple-600/20 rounded-full flex items-center justify-center mb-6">
-              <Shield size={40} className="text-white" />
-            </div>
-            <h2 className="text-3xl font-bold text-white mb-2">Set Your PIN</h2>
-            <p className="text-white/60">Secure your account with a 4-6 digit PIN.</p>
-          </div>
+        <div className="absolute top-[-10%] left-[-10%] w-[300px] h-[300px] bg-blue-600/20 rounded-full blur-[100px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[300px] h-[300px] bg-purple-600/20 rounded-full blur-[100px]" />
+        
+        <div className="w-full max-w-md flex-1 flex flex-col justify-center relative z-10">
+          {securityEnabled ? (
+            // Success State
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="text-center"
+            >
+              <div className="w-24 h-24 mx-auto bg-green-500 rounded-full flex items-center justify-center mb-6">
+                <Check size={48} className="text-white" />
+              </div>
+              <h2 className="text-3xl font-bold text-white mb-2">All Set!</h2>
+              <p className="text-white/60">Your app is now protected with device security.</p>
+            </motion.div>
+          ) : (
+            // Setup State
+            <>
+              <div className="text-center mb-8">
+                <div className="w-24 h-24 mx-auto bg-gradient-to-tr from-blue-600 to-purple-600 rounded-full flex items-center justify-center mb-6 shadow-2xl">
+                  <Fingerprint size={48} className="text-white" />
+                </div>
+                <h2 className="text-3xl font-bold text-white mb-2">Secure Your App</h2>
+                <p className="text-white/60 text-lg">
+                  Use your device's built-in security to protect your financial data.
+                </p>
+              </div>
 
-          <div className="space-y-4 mb-6">
-            <div>
-              <label className="text-sm text-white/60 mb-2 block">Enter PIN</label>
-              <input
-                type="password"
-                inputMode="numeric"
-                value={pin}
-                onChange={e => setPin(e.target.value.replace(/\D/g, ""))}
-                maxLength={6}
-                className="text-center text-2xl p-4 rounded-xl w-full bg-white/10 text-white border border-white/20 focus:border-blue-500 outline-none"
-                placeholder="••••"
-              />
-            </div>
+              {/* Features */}
+              <div className="space-y-4 mb-8">
+                <div className="flex items-center gap-4 p-4 bg-white/5 rounded-2xl border border-white/10">
+                  <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center">
+                    <Fingerprint size={24} className="text-blue-400" />
+                  </div>
+                  <div>
+                    <p className="text-white font-medium">Fingerprint</p>
+                    <p className="text-white/50 text-sm">Quick unlock with your fingerprint</p>
+                  </div>
+                </div>
 
-            <div>
-              <label className="text-sm text-white/60 mb-2 block">Confirm PIN</label>
-              <input
-                type="password"
-                inputMode="numeric"
-                value={confirmPin}
-                onChange={e => setConfirmPin(e.target.value.replace(/\D/g, ""))}
-                maxLength={6}
-                className="text-center text-2xl p-4 rounded-xl w-full bg-white/10 text-white border border-white/20 focus:border-blue-500 outline-none"
-                placeholder="••••"
-              />
-            </div>
-          </div>
+                <div className="flex items-center gap-4 p-4 bg-white/5 rounded-2xl border border-white/10">
+                  <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center">
+                    <Smartphone size={24} className="text-purple-400" />
+                  </div>
+                  <div>
+                    <p className="text-white font-medium">Face ID / Device PIN</p>
+                    <p className="text-white/50 text-sm">Uses your phone's security settings</p>
+                  </div>
+                </div>
+              </div>
 
-          <button
-            onClick={handlePinSetup}
-            disabled={pin.length < 4 || pin !== confirmPin}
-            className="h-14 w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full font-bold hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-3"
-          >
-            Save PIN & Continue
-          </button>
+              {isBiometricSupported ? (
+                <button
+                  onClick={handleEnableSecurity}
+                  disabled={isProcessing}
+                  className="h-14 w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full font-bold hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-3 flex items-center justify-center gap-2"
+                >
+                  {isProcessing ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Setting up...
+                    </>
+                  ) : (
+                    <>
+                      <Shield size={20} />
+                      Enable App Lock
+                    </>
+                  )}
+                </button>
+              ) : (
+                <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl mb-3">
+                  <p className="text-yellow-200 text-sm text-center">
+                    ⚠️ Device authentication is not available on this browser. 
+                    Use Chrome or Edge on a device with biometric support.
+                  </p>
+                </div>
+              )}
 
-          <button
-            onClick={handleSkipPin}
-            className="h-14 w-full bg-white/5 border border-white/10 text-white rounded-full font-medium hover:bg-white/10 transition-all"
-          >
-            Skip for Now
-          </button>
+              <button
+                onClick={handleSkipSecurity}
+                disabled={isProcessing}
+                className="h-14 w-full bg-white/5 border border-white/10 text-white rounded-full font-medium hover:bg-white/10 transition-all disabled:opacity-50"
+              >
+                Skip for Now
+              </button>
+
+              <p className="mt-6 text-white/30 text-xs text-center">
+                You can always enable this later in Settings → Security
+              </p>
+            </>
+          )}
         </div>
       </div>
     );

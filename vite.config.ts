@@ -18,6 +18,29 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
-      }
+      },
+      build: {
+        outDir: 'dist',
+        assetsDir: 'assets',
+        sourcemap: false,
+        minify: 'terser',
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              vendor: ['react', 'react-dom', 'react-router-dom'],
+              ui: ['framer-motion', 'lucide-react'],
+              charts: ['recharts'],
+            }
+          }
+        },
+        // Optimize for mobile
+        target: 'es2020',
+        cssCodeSplit: true,
+        chunkSizeWarningLimit: 1000,
+      },
+      // Optimize dependencies for mobile
+      optimizeDeps: {
+        include: ['react', 'react-dom', 'framer-motion', 'lucide-react'],
+      },
     };
 });

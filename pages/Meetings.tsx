@@ -3,9 +3,11 @@ import React, { useState } from 'react';
 import { Header } from '../components/Header';
 import { useData } from '../context/DataContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Calendar, Check, IndianRupee, ChevronRight, CheckCircle, AlertCircle, X, Trash2, AlertTriangle, Sparkles, Loader2 } from 'lucide-react';
+import { Users, Calendar, Check, IndianRupee, ChevronRight, CheckCircle, AlertCircle, X, Trash2, AlertTriangle, Sparkles, Loader2, Shield } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
+import { useRBAC } from '../hooks/useRBAC';
+import { PermissionGate } from '../components/PermissionGate';
 import toast from 'react-hot-toast';
 import { GoogleGenAI } from '@google/genai';
 
@@ -15,6 +17,7 @@ export const Meetings: React.FC = () => {
   const { t } = useLanguage();
   const { members, meetings, addMeeting, deleteMeeting, loans, isAIQuotaExceeded } = useData();
   const { currentUserRole } = useAuth();
+  const { can, isLeader } = useRBAC();
   const [step, setStep] = useState<WizardStep>('intro');
   
   // Meeting State
@@ -155,8 +158,8 @@ export const Meetings: React.FC = () => {
 
   const renderIntro = () => (
     <div className="px-6 space-y-6">
-      {/* Start New Meeting Card - Only for Leaders */}
-      {currentUserRole !== 'Member' && (
+      {/* Start New Meeting Card - Only for users with start_meeting permission */}
+      <PermissionGate permission="start_meeting">
         <div 
           onClick={startMeeting}
           className="glass-panel p-6 rounded-3xl relative overflow-hidden group cursor-pointer"
@@ -196,7 +199,7 @@ export const Meetings: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
+      </PermissionGate>
 
       {/* Past Meetings List */}
       <div>
@@ -226,14 +229,14 @@ export const Meetings: React.FC = () => {
                   </span>
                 </div>
                 
-                {currentUserRole !== 'Member' && (
+                <PermissionGate permission="start_meeting">
                     <button 
                         onClick={(e) => { e.stopPropagation(); setDeleteId(m.id); }}
                         className="absolute top-4 right-4 p-2 text-white/20 hover:text-red-400 transition-colors z-20 hover:bg-white/5 rounded-full cursor-pointer"
                     >
                         <Trash2 size={16} />
                     </button>
-                )}
+                </PermissionGate>
               </div>
             ))
           )}

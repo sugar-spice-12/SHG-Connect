@@ -1,46 +1,29 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Shield, Lock, Check, AlertCircle } from 'lucide-react';
+import { Shield, Lock, Check, AlertCircle, Fingerprint, Smartphone, ShieldOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
 export const SecuritySettings: React.FC = () => {
-  const { settings, setupSecurity } = useAuth();
-  const [showChangePIN, setShowChangePIN] = useState(false);
-  const [currentPIN, setCurrentPIN] = useState('');
-  const [newPIN, setNewPIN] = useState('');
-  const [confirmPIN, setConfirmPIN] = useState('');
+  const { settings, enableAppLock, disableAppLock, isBiometricSupported } = useAuth();
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  // Change PIN
-  const handleChangePIN = () => {
-    if (currentPIN !== settings.pin) {
-      toast.error('Current PIN is incorrect');
-      return;
+  const handleEnableAppLock = async () => {
+    if (isProcessing) return;
+    
+    setIsProcessing(true);
+    try {
+      await enableAppLock();
+    } catch (error) {
+      console.error("Error enabling app lock:", error);
+    } finally {
+      setIsProcessing(false);
     }
-
-    if (newPIN.length < 4) {
-      toast.error('New PIN must be at least 4 digits');
-      return;
-    }
-
-    if (newPIN !== confirmPIN) {
-      toast.error('PINs do not match');
-      return;
-    }
-
-    setupSecurity(newPIN, false);
-    setShowChangePIN(false);
-    setCurrentPIN('');
-    setNewPIN('');
-    setConfirmPIN('');
-    toast.success('PIN changed successfully');
   };
 
-  // Disable PIN
-  const handleDisablePIN = () => {
-    if (window.confirm('Warning: Disabling PIN will remove all security. Continue?')) {
-      setupSecurity('', false);
-      toast.success('Security disabled');
+  const handleDisableAppLock = () => {
+    if (window.confirm('Warning: Disabling app lock will remove security protection. Continue?')) {
+      disableAppLock();
     }
   };
 
@@ -55,109 +38,93 @@ export const SecuritySettings: React.FC = () => {
             </div>
             <h1 className="text-2xl font-bold text-white">Security Settings</h1>
           </div>
-          <p className="text-white/50 text-sm">Manage your app security and PIN</p>
+          <p className="text-white/50 text-sm">Protect your app with device authentication</p>
         </div>
 
-        {/* PIN Settings */}
+        {/* App Lock Settings */}
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 mb-4">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <Lock size={20} className="text-blue-400" />
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                settings.isBiometricEnabled ? 'bg-green-500/20' : 'bg-white/10'
+              }`}>
+                <Fingerprint size={24} className={settings.isBiometricEnabled ? 'text-green-400' : 'text-white/50'} />
+              </div>
               <div>
-                <h3 className="text-white font-semibold">PIN Security</h3>
+                <h3 className="text-white font-semibold">App Lock</h3>
                 <p className="text-white/50 text-sm">
-                  {settings.isPinEnabled ? `PIN is enabled (${settings.pin?.length || 4} digits)` : 'No PIN set'}
+                  {settings.isBiometricEnabled 
+                    ? 'Protected with device authentication' 
+                    : 'Not enabled'}
                 </p>
               </div>
             </div>
-            {settings.isPinEnabled && (
-              <div className="flex items-center gap-2 text-green-400">
-                <Check size={20} />
+            {settings.isBiometricEnabled && (
+              <div className="flex items-center gap-2 text-green-400 bg-green-500/10 px-3 py-1.5 rounded-full">
+                <Check size={16} />
                 <span className="text-sm font-medium">Active</span>
               </div>
             )}
           </div>
 
-          {settings.isPinEnabled && (
-            <div className="space-y-2">
-              <button
-                onClick={() => setShowChangePIN(!showChangePIN)}
-                className="w-full px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white font-medium transition-all"
-              >
-                Change PIN
-              </button>
-              <button
-                onClick={handleDisablePIN}
-                className="w-full px-4 py-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl text-red-400 font-medium transition-all"
-              >
-                Disable PIN
-              </button>
+          {/* Features List */}
+          <div className="space-y-3 mb-6">
+            <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl">
+              <Fingerprint size={20} className="text-blue-400" />
+              <span className="text-white/80 text-sm">Fingerprint authentication</span>
             </div>
-          )}
+            <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl">
+              <Smartphone size={20} className="text-purple-400" />
+              <span className="text-white/80 text-sm">Face ID / Device PIN / Pattern</span>
+            </div>
+            <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl">
+              <Lock size={20} className="text-orange-400" />
+              <span className="text-white/80 text-sm">Auto-lock after 30 minutes of inactivity</span>
+            </div>
+          </div>
 
-          {!settings.isPinEnabled && (
+          {settings.isBiometricEnabled ? (
+            // Disable button when enabled
+            <button
+              onClick={handleDisableAppLock}
+              className="w-full px-4 py-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl text-red-400 font-medium transition-all flex items-center justify-center gap-2"
+            >
+              <ShieldOff size={18} />
+              Disable App Lock
+            </button>
+          ) : isBiometricSupported ? (
+            // Enable button when supported
+            <button
+              onClick={handleEnableAppLock}
+              disabled={isProcessing}
+              className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl text-white font-medium hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {isProcessing ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Setting up...
+                </>
+              ) : (
+                <>
+                  <Shield size={18} />
+                  Enable App Lock
+                </>
+              )}
+            </button>
+          ) : (
+            // Not supported message
             <div className="flex items-start gap-3 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
               <AlertCircle size={20} className="text-yellow-400 flex-shrink-0 mt-0.5" />
-              <p className="text-yellow-200 text-sm">
-                No PIN is set. Your app is not protected. Set up a PIN in the onboarding screen or contact support.
-              </p>
-            </div>
-          )}
-
-          {/* Change PIN Form */}
-          {showChangePIN && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              className="mt-4 space-y-3 pt-4 border-t border-white/10"
-            >
-              <input
-                type="password"
-                inputMode="numeric"
-                placeholder="Current PIN"
-                value={currentPIN}
-                onChange={(e) => setCurrentPIN(e.target.value.replace(/\D/g, ''))}
-                maxLength={6}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:border-blue-500 outline-none"
-              />
-              <input
-                type="password"
-                inputMode="numeric"
-                placeholder="New PIN (4-6 digits)"
-                value={newPIN}
-                onChange={(e) => setNewPIN(e.target.value.replace(/\D/g, ''))}
-                maxLength={6}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:border-blue-500 outline-none"
-              />
-              <input
-                type="password"
-                inputMode="numeric"
-                placeholder="Confirm New PIN"
-                value={confirmPIN}
-                onChange={(e) => setConfirmPIN(e.target.value.replace(/\D/g, ''))}
-                maxLength={6}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:border-blue-500 outline-none"
-              />
-              <div className="flex gap-2">
-                <button
-                  onClick={handleChangePIN}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl text-white font-medium hover:scale-105 active:scale-95 transition-all"
-                >
-                  Save New PIN
-                </button>
-                <button
-                  onClick={() => {
-                    setShowChangePIN(false);
-                    setCurrentPIN('');
-                    setNewPIN('');
-                    setConfirmPIN('');
-                  }}
-                  className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-white hover:bg-white/10 transition-all"
-                >
-                  Cancel
-                </button>
+              <div>
+                <p className="text-yellow-200 text-sm font-medium mb-1">
+                  Device authentication not available
+                </p>
+                <p className="text-yellow-200/70 text-xs">
+                  Your browser or device doesn't support biometric authentication. 
+                  Try using Chrome or Edge on a device with fingerprint or face recognition.
+                </p>
               </div>
-            </motion.div>
+            </div>
           )}
         </div>
 
@@ -165,26 +132,33 @@ export const SecuritySettings: React.FC = () => {
         <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-6">
           <h3 className="text-blue-400 font-semibold mb-3 flex items-center gap-2">
             <Shield size={18} />
-            Security Tips
+            How It Works
           </h3>
-          <ul className="space-y-2 text-blue-200 text-sm">
+          <ul className="space-y-3 text-blue-200 text-sm">
             <li className="flex items-start gap-2">
               <span className="text-blue-400 mt-0.5">•</span>
-              <span>Use a strong PIN that's difficult to guess (avoid 1234, 0000, etc.)</span>
+              <span>Uses your device's built-in security (fingerprint, face, or device PIN)</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-blue-400 mt-0.5">•</span>
-              <span>Don't share your PIN with anyone</span>
+              <span>No separate PIN to remember - uses what you already have set up on your phone</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-blue-400 mt-0.5">•</span>
-              <span>Change your PIN regularly for better security</span>
+              <span>App automatically locks after 30 minutes of inactivity</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-blue-400 mt-0.5">•</span>
-              <span>If you forget your PIN, you'll need to log in again with OTP</span>
+              <span>Your biometric data never leaves your device - it's processed locally</span>
             </li>
           </ul>
+        </div>
+
+        {/* Additional Info */}
+        <div className="mt-4 p-4 bg-white/5 border border-white/10 rounded-xl">
+          <p className="text-white/40 text-xs text-center">
+            App lock uses the Web Authentication API (WebAuthn) which is supported on most modern browsers and devices.
+          </p>
         </div>
       </div>
     </div>

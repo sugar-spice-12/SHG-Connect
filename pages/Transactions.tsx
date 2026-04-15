@@ -1,24 +1,32 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Header } from '../components/Header';
 import { useData } from '../context/DataContext';
 import { motion } from 'framer-motion';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Shield } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
+import { useRBAC } from '../hooks/useRBAC';
+import { PermissionGate } from '../components/PermissionGate';
 import toast from 'react-hot-toast';
 
 export const Transactions: React.FC = () => {
   const { transactions, deleteTransaction } = useData();
   const { t } = useLanguage();
   const { currentUserRole, user } = useAuth();
+  const { can, isMemberOnly } = useRBAC();
   
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  // Filter transactions for Animator
-  const displayedTransactions = currentUserRole === 'Animator' && user?.memberId
-    ? transactions.filter(t => t.memberId === user.memberId)
-    : transactions;
+  // Filter transactions based on role
+  // Members can only see their own transactions
+  const displayedTransactions = useMemo(() => {
+    if (can('view_transactions')) {
+      return transactions; // Leaders and Animators can see all
+    }
+    // Members can only see their own transactions
+    return transactions.filter(t => t.memberId === user?.memberId);
+  }, [transactions, can, user?.memberId]);
 
   const confirmDelete = () => {
     if (deleteId) {
@@ -62,9 +70,9 @@ export const Transactions: React.FC = () => {
                     </span>
                   </div>
                   
-                  {(currentUserRole === 'SHG Leader' || currentUserRole === 'CRP') && (
+                  <PermissionGate permission="delete_transaction">
                     <button onClick={(e) => { e.stopPropagation(); setDeleteId(t.id); }} className="absolute right-4 top-1/2 -translate-y-1/2 z-20 p-2 text-white/30 hover:text-red-400 transition-colors"><Trash2 size={18} /></button>
-                  )}
+                  </PermissionGate>
               </div>
             ))
           )}

@@ -1,13 +1,11 @@
-
 import React, { useState } from 'react';
 import { Header } from '../components/Header';
 import { useData } from '../context/DataContext';
 import { motion } from 'framer-motion';
-import { Check, Mic, Receipt, FileText, Coffee, BookOpen, Plane } from 'lucide-react';
+import { Check, Mic, MicOff, Receipt, FileText, Coffee, BookOpen, Plane } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useLanguage } from '../context/LanguageContext';
 import { ExpenseCategory } from '../types';
-import { GoogleGenAI, Type } from '@google/genai';
 import { useAuth } from '../context/AuthContext';
 
 export const TransactPage: React.FC = () => {
@@ -81,41 +79,120 @@ export const TransactPage: React.FC = () => {
     setDescription('');
   };
 
-  const processVoiceInput = async (transcript: string) => {
-    if (!process.env.API_KEY) {
-        toast.error("API Key missing"); return;
-    }
+  // Local voice command processing (no API needed)
+  const processVoiceInput = (transcript: string) => {
     setIsProcessing(true);
     try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const prompt = `Extract transaction details from: "${transcript}". Return JSON { "amount": number, "type": "Savings"|"Loan Repayment"|"Expense", "memberName": string|null, "description": string }`;
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: { responseMimeType: "application/json", responseSchema: { type: Type.OBJECT, properties: { amount: { type: Type.NUMBER }, type: { type: Type.STRING }, memberName: { type: Type.STRING, nullable: true }, description: { type: Type.STRING } } } }
-        });
-        const result = JSON.parse(response.text);
-        if (result) {
-            if (result.amount) setAmount(result.amount.toString());
-            if (result.type === 'Expense') { setMode('expense'); setDescription(result.description || ''); } 
-            else { setMode('income'); setIncomeType(result.type === 'Loan Repayment' ? 'Loan Repayment' : 'Savings'); 
-                if (result.memberName) { const member = members.find(m => m.name.toLowerCase().includes(result.memberName.toLowerCase().split(' ')[0])); if (member) setSelectedMemberId(member.id); }
-            }
-            toast.success("Command processed");
+      const text = transcript.toLowerCase();
+      
+      // Extract amount - look for numbers
+      const amountMatch = text.match(/(\d+)/);
+      if (amountMatch) {
+        setAmount(amountMatch[1]);
+      }
+      
+      // Detect transaction type
+      if (text.includes('expense') || text.includes('kharcha') || text.includes('spent') || text.includes('खर्च')) {
+        setMode('expense');
+        // Try to detect category
+        if (text.includes('food') || text.includes('khana') || text.includes('खाना')) {
+          setExpenseCategory('Food');
+        } else if (text.includes('travel') || text.includes('yatra') || text.includes('यात्रा')) {
+          setExpenseCategory('Travel');
+        } else if (text.includes('training') || text.includes('प्रशिक्षण')) {
+          setExpenseCategory('Training');
+        } else if (text.includes('stationary') || text.includes('stationery')) {
+          setExpenseCategory('Stationary');
         }
-    } catch (error) { toast.error("Command failed"); } finally { setIsProcessing(false); }
+        setDescription(transcript);
+      } else if (text.includes('loan') || text.includes('repay') || text.includes('rin') || text.includes('ऋण') || text.includes('भुगतान')) {
+        setMode('income');
+        setIncomeType('Loan Repayment');
+      } else if (text.includes('saving') || text.includes('bachat') || text.includes('बचत') || text.includes('deposit')) {
+        setMode('income');
+        setIncomeType('Savings');
+      }
+      
+      // Try to find member name
+      for (const member of members) {
+        const firstName = member.name.split(' ')[0].toLowerCase();
+        if (text.includes(firstName)) {
+          setSelectedMemberId(member.id);
+          break;
+        }
+      }
+      
+      if (amountMatch) {
+        toast.success("Voice command processed!");
+      } else {
+        toast("Speak amount clearly, e.g., '500 savings from Lakshmi'", { icon: '💡' });
+      }
+    } catch (error) {
+      toast.error("Could not process voice command");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const startVoiceInput = () => {
-      // @ts-ignore
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) { toast.error("Voice not supported"); return; }
-      const recognition = new SpeechRecognition();
-      recognition.lang = language === 'hi' ? 'hi-IN' : 'en-IN';
-      recognition.onresult = (e: any) => processVoiceInput(e.results[0][0].transcript);
+    // @ts-ignore
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) { 
+      toast.error("Voice not supported in this browser. Use Chrome or Edge."); 
+      return; 
+    }
+    
+    const recognition = new SpeechRecognition();
+    recognition.lang = language === 'hi' ? 'hi-IN' : 'en-IN';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    
+    recognition.onstart = () => {
       setIsListening(true);
+      toast('🎤 Listening... Say amount and type', { duration: 2000 });
+    };
+    
+    recognition.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript;
+      console.log('Voice input:', transcript);
+      processVoiceInput(transcript);
+    };
+    
+    recognition.onerror = (e: any) => {
+      console.error('Speech recognition error:', e.error);
+      switch (e.error) {
+        case 'not-allowed':
+        case 'permission-denied':
+          toast((t) => (
+            <div className="flex flex-col gap-1">
+              <span className="font-bold">🎤 Microphone Blocked</span>
+              <span className="text-xs">Click the lock icon in address bar → Allow microphone</span>
+            </div>
+          ), { duration: 5000 });
+          break;
+        case 'no-speech':
+          toast.error("No speech detected. Please try again.");
+          break;
+        case 'audio-capture':
+          toast.error("No microphone found. Please check your device.");
+          break;
+        case 'network':
+          toast.error("Network error. Voice requires internet.");
+          break;
+        default:
+          toast.error("Voice recognition failed. Please try again.");
+      }
+      setIsListening(false);
+    };
+    
+    recognition.onend = () => setIsListening(false);
+    
+    try {
       recognition.start();
-      recognition.onend = () => setIsListening(false);
+    } catch (error) {
+      toast.error("Could not start voice recognition");
+      setIsListening(false);
+    }
   };
 
   const categories: { id: ExpenseCategory; icon: any; labelKey: string }[] = [
@@ -145,7 +222,17 @@ export const TransactPage: React.FC = () => {
                     <span className="text-4xl text-white/30 font-light">₹</span>
                     <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" className="bg-transparent text-6xl font-bold text-white w-48 text-center focus:outline-none placeholder:text-white/10"/>
                 </div>
-                <button onClick={startVoiceInput} className="absolute right-0 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center hover:bg-blue-500 hover:text-white transition-all"><Mic size={18} /></button>
+                <button 
+                    onClick={startVoiceInput} 
+                    disabled={isListening || isProcessing}
+                    className={`absolute right-0 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                      isListening 
+                        ? 'bg-red-500 text-white animate-pulse' 
+                        : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white'
+                    }`}
+                  >
+                    {isListening ? <MicOff size={18} /> : <Mic size={18} />}
+                  </button>
             </div>
 
             <div className="flex gap-4 mb-6">

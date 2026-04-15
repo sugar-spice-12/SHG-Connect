@@ -2,9 +2,11 @@
 import React, { useState, useMemo } from 'react';
 import { Header } from '../components/Header';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, Table, Calendar, TrendingUp, BookOpen, BarChart2, Sparkles, Loader2 } from 'lucide-react';
+import { Download, Table, Calendar, TrendingUp, BookOpen, BarChart2, Sparkles, Loader2, Lock } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useData } from '../context/DataContext';
+import { useRBAC } from '../hooks/useRBAC';
+import { PermissionGate, PermissionButton } from '../components/PermissionGate';
 import toast from 'react-hot-toast';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { GoogleGenAI } from '@google/genai';
@@ -12,6 +14,7 @@ import { GoogleGenAI } from '@google/genai';
 export const Reports: React.FC = () => {
   const { t } = useLanguage();
   const { transactions, members, loans, meetings, isAIQuotaExceeded } = useData();
+  const { can } = useRBAC();
   const [filter, setFilter] = useState<'all' | 'month'>('month');
   const [aiReport, setAiReport] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -302,30 +305,46 @@ export const Reports: React.FC = () => {
                 </div>
             </div>
 
-            {/* Report Generation Cards */}
+            {/* Report Generation Cards - Export requires permission */}
             <div className="grid grid-cols-2 gap-4">
-                <div onClick={exportSavingsReport} className="glass-panel p-4 rounded-2xl group cursor-pointer hover:bg-white/5 transition-colors active:scale-95">
+                <div 
+                    onClick={() => can('export_reports') ? exportSavingsReport() : toast.error(t('insufficientPermissions'))} 
+                    className={`glass-panel p-4 rounded-2xl group cursor-pointer transition-colors active:scale-95 relative ${can('export_reports') ? 'hover:bg-white/5' : 'opacity-60'}`}
+                >
+                    {!can('export_reports') && <Lock size={14} className="absolute top-3 right-3 text-white/30" />}
                     <div className="w-10 h-10 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                         <TrendingUp size={20} />
                     </div>
                     <h4 className="font-bold text-sm text-white">{t('savingsReport')}</h4>
                     <p className="text-[10px] text-white/40 mt-1">Export CSV</p>
                 </div>
-                <div onClick={exportLoanRegister} className="glass-panel p-4 rounded-2xl group cursor-pointer hover:bg-white/5 transition-colors active:scale-95">
+                <div 
+                    onClick={() => can('export_reports') ? exportLoanRegister() : toast.error(t('insufficientPermissions'))} 
+                    className={`glass-panel p-4 rounded-2xl group cursor-pointer transition-colors active:scale-95 relative ${can('export_reports') ? 'hover:bg-white/5' : 'opacity-60'}`}
+                >
+                    {!can('export_reports') && <Lock size={14} className="absolute top-3 right-3 text-white/30" />}
                     <div className="w-10 h-10 rounded-full bg-purple-500/10 text-purple-400 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                         <BookOpen size={20} />
                     </div>
                     <h4 className="font-bold text-sm text-white">{t('loanRegister')}</h4>
                     <p className="text-[10px] text-white/40 mt-1">Export CSV</p>
                 </div>
-                 <div onClick={exportAttendanceReport} className="glass-panel p-4 rounded-2xl group cursor-pointer hover:bg-white/5 transition-colors active:scale-95">
+                 <div 
+                    onClick={() => can('export_reports') ? exportAttendanceReport() : toast.error(t('insufficientPermissions'))} 
+                    className={`glass-panel p-4 rounded-2xl group cursor-pointer transition-colors active:scale-95 relative ${can('export_reports') ? 'hover:bg-white/5' : 'opacity-60'}`}
+                >
+                    {!can('export_reports') && <Lock size={14} className="absolute top-3 right-3 text-white/30" />}
                     <div className="w-10 h-10 rounded-full bg-orange-500/10 text-orange-400 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                         <Calendar size={20} />
                     </div>
                     <h4 className="font-bold text-sm text-white">Attendance Log</h4>
                     <p className="text-[10px] text-white/40 mt-1">Export CSV</p>
                 </div>
-                 <div onClick={exportCashBook} className="glass-panel p-4 rounded-2xl group cursor-pointer hover:bg-white/5 transition-colors active:scale-95">
+                 <div 
+                    onClick={() => can('export_reports') ? exportCashBook() : toast.error(t('insufficientPermissions'))} 
+                    className={`glass-panel p-4 rounded-2xl group cursor-pointer transition-colors active:scale-95 relative ${can('export_reports') ? 'hover:bg-white/5' : 'opacity-60'}`}
+                >
+                    {!can('export_reports') && <Lock size={14} className="absolute top-3 right-3 text-white/30" />}
                     <div className="w-10 h-10 rounded-full bg-green-500/10 text-green-400 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                         <Table size={20} />
                     </div>
@@ -354,9 +373,11 @@ export const Reports: React.FC = () => {
                             </button>
                         </div>
                     </div>
-                    <button onClick={exportCashBook} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white/70">
-                        <Download size={16} />
-                    </button>
+                    <PermissionGate permission="export_reports">
+                        <button onClick={exportCashBook} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white/70">
+                            <Download size={16} />
+                        </button>
+                    </PermissionGate>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">

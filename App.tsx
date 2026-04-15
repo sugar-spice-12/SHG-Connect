@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BottomNav } from './components/BottomNav';
 import { Dashboard } from './pages/Dashboard';
 import { Members } from './pages/Members';
@@ -14,34 +14,96 @@ import { TransactPage } from './pages/TransactPage';
 import { AppLock } from './components/AppLock';
 import { LoginScreen } from './components/LoginScreen';
 import { Onboarding } from './components/Onboarding';
-import { PinSetup } from './components/PinSetup';
+import { WelcomeScreens } from './components/WelcomeScreens';
+import { LanguageSelector } from './components/LanguageSelector';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Toaster } from 'react-hot-toast';
 import { DataProvider } from './context/DataContext';
-import { LanguageProvider } from './context/LanguageContext';
+import { LanguageProvider, useLanguage } from './context/LanguageContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { View } from './types';
 import { AIChatBot } from './components/AIChatBot';
+import { useNativeInit, useHaptics, useBackButton, useNetworkStatus } from './hooks/useNative';
+import { Language } from './translations';
+
+// New Feature Pages
+import { CalculatorPage } from './pages/Calculator';
+import { SavingsGoals } from './pages/SavingsGoals';
+import { Announcements } from './pages/Announcements';
+import { Voting } from './pages/Voting';
+import { Chat } from './pages/Chat';
+import { AuditLog } from './pages/AuditLog';
+
+// Additional Feature Pages
+import { Birthdays } from './pages/Birthdays';
+import { Performance } from './pages/Performance';
+import { Backup } from './pages/Backup';
+import { BankVerification } from './pages/BankVerification';
+import { MeetingMinutesPage } from './pages/MeetingMinutesPage';
+import { GPSAttendance } from './pages/GPSAttendance';
 
 const AppContent: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [showSplash, setShowSplash] = useState(true);
+  const [showLanguageSelector, setShowLanguageSelector] = useState(() => {
+    // Check if user has selected a language before
+    return !localStorage.getItem('shg_language');
+  });
+  const [showWelcome, setShowWelcome] = useState(() => {
+    // Check if user has seen welcome screens before
+    return !localStorage.getItem('shg_welcome_seen');
+  });
+  
+  const { setLanguage } = useLanguage();
   
   const { 
     isAuthenticated, 
     isLocked, 
-    showOnboarding, 
-    showPinSetup,
+    showOnboarding,
     user,
     currentUserRole
   } = useAuth();
 
+  // Native mobile initialization
+  const { isReady: isNativeReady, isNative } = useNativeInit();
+  const { tap } = useHaptics();
+  const { isOnline } = useNetworkStatus();
+
+  // Handle Android back button
+  const handleBackButton = useCallback(() => {
+    if (showLanguageSelector || showWelcome) {
+      return true; // Don't exit during onboarding
+    }
+    if (currentView !== 'dashboard') {
+      setCurrentView('dashboard');
+      tap('light');
+      return true; // Handled
+    }
+    return false; // Let system handle (exit app)
+  }, [currentView, tap, showLanguageSelector, showWelcome]);
+
+  useBackButton(handleBackButton);
+
+  // Load saved language on mount
+  useEffect(() => {
+    const savedLang = localStorage.getItem('shg_language') as Language;
+    if (savedLang) {
+      setLanguage(savedLang);
+    }
+  }, [setLanguage]);
+
+  // Handle language selection
+  const handleLanguageSelect = (lang: Language) => {
+    setLanguage(lang);
+    setShowLanguageSelector(false);
+  };
+
   // Simulate app initialization/loading
   useEffect(() => {
-    const timer = setTimeout(() => setShowSplash(false), 2000);
+    const timer = setTimeout(() => setShowSplash(false), isNative ? 1500 : 2000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [isNative]);
 
   const handleMemberSelect = (id: string) => {
     setSelectedMemberId(id);
@@ -72,7 +134,21 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // 1. Not logged in -> Login Screen
+  // 0. First time user -> Language Selection (before anything else)
+  if (showLanguageSelector) {
+    return (
+      <LanguageSelector onSelect={handleLanguageSelect} />
+    );
+  }
+
+  // 1. First time user -> Welcome/Introduction screens
+  if (showWelcome) {
+    return (
+      <WelcomeScreens onComplete={() => setShowWelcome(false)} />
+    );
+  }
+
+  // 2. Not logged in -> Login Screen
   if (!isAuthenticated) {
     return (
        <>
@@ -82,22 +158,17 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // 2. New User -> Onboarding
+  // 3. New User -> Onboarding (includes security setup)
   if (showOnboarding) {
-      return <Onboarding />;
-  }
-
-  // 3. Setup Security -> PIN
-  if (showPinSetup) {
       return (
-          <>
-            <Toaster position="top-center" />
-            <PinSetup />
-          </>
+        <>
+          <Toaster position="top-center" />
+          <Onboarding />
+        </>
       );
   }
 
-  // 4. Returning User Locked -> App Lock
+  // 4. Returning User Locked -> App Lock (uses device biometric/PIN)
   if (isLocked) {
       return (
           <>
@@ -107,7 +178,7 @@ const AppContent: React.FC = () => {
       );
   }
 
-  // 5. Main App Dashboard
+  // 4. Main App Dashboard
   return (
     <div className="min-h-screen bg-background text-white pb-24 relative selection:bg-purple-500/30 font-sans">
       <Toaster position="top-center" toastOptions={{
@@ -144,6 +215,22 @@ const AppContent: React.FC = () => {
           {currentView === 'analytics' && <Analytics key="analytics" />}
           {currentView === 'loans' && <Loans key="loans" />}
           {currentView === 'settings' && <Settings key="settings" onBack={() => setCurrentView('dashboard')} />}
+          
+          {/* New Feature Pages */}
+          {currentView === 'calculator' && <CalculatorPage key="calculator" onBack={() => setCurrentView('dashboard')} />}
+          {currentView === 'savings-goals' && <SavingsGoals key="savings-goals" onBack={() => setCurrentView('dashboard')} />}
+          {currentView === 'announcements' && <Announcements key="announcements" onBack={() => setCurrentView('dashboard')} />}
+          {currentView === 'voting' && <Voting key="voting" onBack={() => setCurrentView('dashboard')} />}
+          {currentView === 'chat' && <Chat key="chat" onBack={() => setCurrentView('dashboard')} />}
+          {currentView === 'audit-log' && <AuditLog key="audit-log" onBack={() => setCurrentView('settings')} />}
+          
+          {/* Additional Feature Pages */}
+          {currentView === 'birthdays' && <Birthdays key="birthdays" />}
+          {currentView === 'performance' && <Performance key="performance" />}
+          {currentView === 'backup' && <Backup key="backup" />}
+          {currentView === 'bank-verification' && <BankVerification key="bank-verification" />}
+          {currentView === 'meeting-minutes' && <MeetingMinutesPage key="meeting-minutes" />}
+          {currentView === 'gps-attendance' && <GPSAttendance key="gps-attendance" />}
         </AnimatePresence>
       </main>
 

@@ -1,29 +1,95 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback, memo } from 'react';
 import { Header } from '../components/Header';
 import { useData } from '../context/DataContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, ChevronRight, Plus, X, User, Calendar } from 'lucide-react';
+import { Phone, ChevronRight, Plus, X, User, Calendar, Search, Shield } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
+import { useDebounce } from '../lib/hooks';
+import { useRBAC } from '../hooks/useRBAC';
+import { PermissionGate, RoleBadge } from '../components/PermissionGate';
 import toast from 'react-hot-toast';
+import { Member } from '../types';
 
 interface MembersProps {
   onSelectMember?: (id: string) => void;
 }
 
+// Memoized Member Card Component for better performance
+const MemberCard = memo(({ 
+  member, 
+  onSelect, 
+  onCall,
+  t 
+}: { 
+  member: Member; 
+  onSelect: () => void; 
+  onCall: (phone: string, name: string, e: React.MouseEvent) => void;
+  t: (key: string) => string;
+}) => (
+  <div 
+    onClick={onSelect}
+    className="glass-panel p-4 rounded-2xl flex items-center gap-4 relative overflow-hidden group cursor-pointer hover:bg-white/5 transition-all hover:scale-[1.02]"
+  >
+    {/* Status Indicator strip */}
+    <div className={`absolute left-0 top-0 bottom-0 w-1 ${member.attendanceRate > 90 ? 'bg-green-500' : 'bg-yellow-500'}`} />
+
+    <div className="relative">
+      <img src={member.avatarUrl} alt={member.name} className="w-14 h-14 rounded-full object-cover border-2 border-white/5 group-hover:border-blue-500/50 transition-colors" />
+      {member.role === 'SHG Leader' && (
+        <span className="absolute -bottom-1 -right-2 bg-blue-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full border border-[#0D0D0F] shadow-sm">LEADER</span>
+      )}
+    </div>
+    
+    <div className="flex-1 min-w-0">
+      <h3 className="font-bold text-white text-base truncate group-hover:text-blue-400 transition-colors">{member.name}</h3>
+      <div className="flex flex-col gap-1 mt-1">
+        <div className="text-xs text-white/50 flex items-center justify-between">
+          <span>{t('savings')}</span>
+          <span className="text-white font-medium">₹{member.savingsBalance.toLocaleString()}</span>
+        </div>
+        {member.loanOutstanding > 0 && (
+          <div className="text-xs text-white/50 flex items-center justify-between">
+            <span>Loan</span>
+            <span className="text-red-400 font-medium">₹{member.loanOutstanding.toLocaleString()}</span>
+          </div>
+        )}
+      </div>
+    </div>
+
+    <div className="flex flex-col items-end justify-between h-full gap-2 pl-2 border-l border-white/5">
+      <ChevronRight size={18} className="text-white/20 group-hover:text-white transition-colors" />
+      {member.phoneNumber && (
+        <button 
+          onClick={(e) => onCall(member.phoneNumber!, member.name, e)}
+          className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-green-400 hover:bg-green-500 hover:text-white transition-colors active:scale-90"
+          title={`Call ${member.name}`}
+        >
+          <Phone size={14} />
+        </button>
+      )}
+    </div>
+  </div>
+));
+
+MemberCard.displayName = 'MemberCard';
+
 export const Members: React.FC<MembersProps> = ({ onSelectMember }) => {
   const { members, addMember } = useData();
   const { t } = useLanguage();
   const { currentUserRole, user } = useAuth();
+  const { can, canManageMember, getRoleLabel, isMemberOnly } = useRBAC();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 300);
 
   // Form State
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberPhone, setNewMemberPhone] = useState('');
   const [newMemberRole, setNewMemberRole] = useState<'Member' | 'SHG Leader' | 'Animator'>('Member');
 
-  // Handle phone call
-  const handleCall = (phoneNumber: string, memberName: string, e: React.MouseEvent) => {
+  // Handle phone call - memoized
+  const handleCall = useCallback((phoneNumber: string, memberName: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card click
     
     if (!phoneNumber) {
@@ -46,9 +112,9 @@ export const Members: React.FC<MembersProps> = ({ onSelectMember }) => {
     
     // Show feedback
     toast.success(`Calling ${memberName}...`, { icon: '📞' });
-  };
+  }, []);
 
-  const handleAddMember = (e: React.FormEvent) => {
+  const handleAddMember = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (!newMemberName) {
       toast.error("Name is required");
@@ -74,12 +140,35 @@ export const Members: React.FC<MembersProps> = ({ onSelectMember }) => {
     setNewMemberName('');
     setNewMemberPhone('');
     setNewMemberRole('Member');
-  };
+  }, [newMemberName, newMemberPhone, newMemberRole, addMember, t]);
 
-  // Filter members based on Role
-  const displayedMembers = currentUserRole === 'Animator' && user?.memberId
-     ? members.filter(m => m.id === user.memberId)
-     : members;
+  // Filter and search members - memoized for performance
+  // Members can only see themselves, Animators can see all but limited actions
+  const displayedMembers = useMemo(() => {
+    let filtered = members;
+    
+    // Members can only see their own profile
+    if (isMemberOnly && user?.memberId) {
+      filtered = members.filter(m => m.id === user.memberId);
+    }
+    
+    // Apply search filter
+    if (debouncedSearch.trim()) {
+      const query = debouncedSearch.toLowerCase();
+      filtered = filtered.filter(m => 
+        m.name.toLowerCase().includes(query) ||
+        m.phoneNumber?.includes(query) ||
+        m.role.toLowerCase().includes(query)
+      );
+    }
+    
+    return filtered;
+  }, [members, isMemberOnly, user?.memberId, debouncedSearch]);
+
+  // Memoized member select handler
+  const handleMemberSelect = useCallback((id: string) => {
+    onSelectMember?.(id);
+  }, [onSelectMember]);
 
   return (
     <motion.div 
@@ -90,73 +179,62 @@ export const Members: React.FC<MembersProps> = ({ onSelectMember }) => {
     >
       <Header title={t('groupMembers')} subtitle={`SHG • ${members.length} Active`} showProfile={false} />
       
+      {/* Search Bar */}
+      <div className="px-6 mb-4">
+        <div className="relative">
+          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search members..."
+            className="w-full h-12 bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 text-white placeholder:text-white/30 focus:outline-none focus:border-blue-500/50 transition-colors"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+        {debouncedSearch && (
+          <p className="text-xs text-white/40 mt-2 ml-1">
+            Found {displayedMembers.length} member{displayedMembers.length !== 1 ? 's' : ''}
+          </p>
+        )}
+      </div>
+      
       <div className="px-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3 max-w-7xl mx-auto">
-        {displayedMembers.map((member, index) => (
-          <motion.div 
+        {displayedMembers.map((member) => (
+          <MemberCard
             key={member.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-            onClick={() => onSelectMember?.(member.id)}
-            className="glass-panel p-4 rounded-2xl flex items-center gap-4 relative overflow-hidden group cursor-pointer hover:bg-white/5 transition-all hover:scale-[1.02]"
-          >
-            {/* Status Indicator strip */}
-            <div className={`absolute left-0 top-0 bottom-0 w-1 ${member.attendanceRate > 90 ? 'bg-green-500' : 'bg-yellow-500'}`} />
-
-            <div className="relative">
-                <img src={member.avatarUrl} alt={member.name} className="w-14 h-14 rounded-full object-cover border-2 border-white/5 group-hover:border-blue-500/50 transition-colors" />
-                {member.role === 'SHG Leader' && (
-                    <span className="absolute -bottom-1 -right-2 bg-blue-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full border border-[#0D0D0F] shadow-sm">LEADER</span>
-                )}
-            </div>
-            
-            <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-white text-base truncate group-hover:text-blue-400 transition-colors">{member.name}</h3>
-                <div className="flex flex-col gap-1 mt-1">
-                    <div className="text-xs text-white/50 flex items-center justify-between">
-                         <span>{t('savings')}</span>
-                         <span className="text-white font-medium">₹{member.savingsBalance.toLocaleString()}</span>
-                    </div>
-                    {member.loanOutstanding > 0 && (
-                        <div className="text-xs text-white/50 flex items-center justify-between">
-                             <span>Loan</span>
-                             <span className="text-red-400 font-medium">₹{member.loanOutstanding.toLocaleString()}</span>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            <div className="flex flex-col items-end justify-between h-full gap-2 pl-2 border-l border-white/5">
-                <ChevronRight size={18} className="text-white/20 group-hover:text-white transition-colors" />
-                {member.phoneNumber && (
-                  <button 
-                    onClick={(e) => handleCall(member.phoneNumber!, member.name, e)}
-                    className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-green-400 hover:bg-green-500 hover:text-white transition-colors active:scale-90"
-                    title={`Call ${member.name}`}
-                  >
-                      <Phone size={14} />
-                  </button>
-                )}
-            </div>
-          </motion.div>
+            member={member}
+            onSelect={() => handleMemberSelect(member.id)}
+            onCall={handleCall}
+            t={t}
+          />
         ))}
         
-        {displayedMembers.length === 0 && currentUserRole === 'Animator' && (
+        {displayedMembers.length === 0 && isMemberOnly && (
             <div className="col-span-full text-center p-10 text-white/30">
-                No personal member record found linked to your login.
+                <Shield className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                <p>{t('viewOnlyAccess')}</p>
+                <p className="text-xs mt-2">{t('noPermissionMessage')}</p>
             </div>
         )}
       </div>
 
-      {/* Add Member FAB - Only for Leaders/CRP */}
-      {(currentUserRole === 'SHG Leader' || currentUserRole === 'CRP') && (
+      {/* Add Member FAB - Only for users with add_member permission */}
+      <PermissionGate permission="add_member">
         <button 
             onClick={() => setShowAddModal(true)}
             className="fixed bottom-24 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 text-white flex items-center justify-center shadow-2xl shadow-blue-900/50 font-bold active:scale-90 transition-transform hover:scale-105 z-50"
         >
             <Plus size={24} />
         </button>
-      )}
+      </PermissionGate>
 
       {/* Add Member Modal */}
       <AnimatePresence>

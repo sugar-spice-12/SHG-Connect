@@ -3,6 +3,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Header } from '../components/Header';
 import { FeaturedCard } from '../components/FeaturedCard';
 import { ConflictResolver } from '../components/ConflictResolver';
+import { QuickActions } from '../components/QuickActions';
 import { WifiOff, RefreshCw, ArrowUpRight, ArrowDownLeft, AlertTriangle, Cloud, Sparkles, Lightbulb, Zap, X } from 'lucide-react';
 import { View } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -246,6 +247,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onChangeView }) => {
                     </div>
                   </div>
                 </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="lg:col-span-3">
+              <QuickActions onNavigate={onChangeView} />
             </div>
 
             {/* Recent Activity */}

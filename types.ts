@@ -1,5 +1,5 @@
 
-export type View = 'dashboard' | 'members' | 'transactions' | 'analytics' | 'profile' | 'settings' | 'meetings' | 'loans' | 'reports' | 'transact';
+export type View = 'dashboard' | 'members' | 'transactions' | 'analytics' | 'profile' | 'settings' | 'meetings' | 'loans' | 'reports' | 'transact' | 'calculator' | 'savings-goals' | 'announcements' | 'chat' | 'voting' | 'scanner' | 'audit-log' | 'birthdays' | 'performance' | 'backup' | 'bank-verification' | 'meeting-minutes' | 'gps-attendance';
 
 export type SyncStatus = 'synced' | 'syncing' | 'offline' | 'error' | 'conflicted';
 
@@ -11,6 +11,8 @@ export interface User {
   phoneNumber: string;
   role: Role;
   memberId?: string; // Links auth user to specific member data
+  email?: string;
+  avatarUrl?: string;
 }
 
 export interface Conflict {
@@ -52,6 +54,183 @@ export interface AuthSettings {
 export interface AttendanceRecord {
   date: string;
   status: 'Present' | 'Absent';
+  memberId?: string;
+  meetingId?: string;
+  checkInTime?: string;
+  location?: { lat: number; lng: number };
+}
+
+// ============ NEW TYPES ============
+
+// UPI Payment
+export interface UPIPayment {
+  id: string;
+  payeeName: string;
+  payeeUPI: string;
+  amount: number;
+  description: string;
+  qrCode?: string;
+  status: 'pending' | 'completed' | 'failed';
+  transactionId?: string;
+  createdAt: string;
+  completedAt?: string;
+}
+
+// Savings Goal
+export interface SavingsGoal {
+  id: string;
+  title: string;
+  targetAmount: number;
+  currentAmount: number;
+  deadline: string;
+  createdAt: string;
+  type: 'group' | 'individual';
+  memberId?: string;
+  status: 'active' | 'completed' | 'cancelled';
+  contributions: SavingsContribution[];
+}
+
+export interface SavingsContribution {
+  id: string;
+  goalId: string;
+  memberId: string;
+  memberName: string;
+  amount: number;
+  date: string;
+}
+
+// Announcement
+export interface Announcement {
+  id: string;
+  title: string;
+  message: string;
+  type: 'general' | 'urgent' | 'meeting' | 'payment';
+  createdBy: string;
+  createdByName: string;
+  createdAt: string;
+  expiresAt?: string;
+  readBy: string[];
+  attachments?: string[];
+}
+
+// Chat Message
+export interface ChatMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar?: string;
+  message: string;
+  timestamp: string;
+  type: 'text' | 'image' | 'document' | 'voice';
+  attachmentUrl?: string;
+  readBy: string[];
+  replyTo?: string;
+}
+
+export interface ChatRoom {
+  id: string;
+  name: string;
+  type: 'group' | 'direct';
+  participants: string[];
+  lastMessage?: ChatMessage;
+  unreadCount: number;
+  createdAt: string;
+}
+
+// Voting/Poll
+export interface VotingOption {
+  id: string;
+  text: string;
+  votes: string[]; // Member IDs who voted
+}
+
+export interface VotingPoll {
+  id: string;
+  question: string;
+  description?: string;
+  options: VotingOption[];
+  createdBy: string;
+  createdByName: string;
+  createdAt: string;
+  endsAt: string;
+  status: 'active' | 'closed';
+  isAnonymous: boolean;
+  allowMultiple: boolean;
+  totalVotes: number;
+}
+
+// Document
+export interface ScannedDocument {
+  id: string;
+  type: 'aadhaar' | 'pan' | 'passbook' | 'receipt' | 'other';
+  memberId?: string;
+  memberName?: string;
+  imageUrl: string;
+  extractedData?: Record<string, string>;
+  createdAt: string;
+  verifiedAt?: string;
+  verifiedBy?: string;
+}
+
+// Audit Log
+export interface AuditLogEntry {
+  id: string;
+  userId: string;
+  userName: string;
+  action: 'create' | 'update' | 'delete' | 'login' | 'logout' | 'export' | 'view';
+  entityType: 'member' | 'transaction' | 'loan' | 'meeting' | 'settings' | 'report';
+  entityId?: string;
+  description: string;
+  timestamp: string;
+  ipAddress?: string;
+  deviceInfo?: string;
+  changes?: { field: string; oldValue: any; newValue: any }[];
+}
+
+// Device Session
+export interface DeviceSession {
+  id: string;
+  userId: string;
+  deviceName: string;
+  deviceType: 'mobile' | 'tablet' | 'desktop';
+  browser?: string;
+  os?: string;
+  ipAddress?: string;
+  location?: string;
+  lastActive: string;
+  createdAt: string;
+  isCurrent: boolean;
+}
+
+// Meeting with enhanced features
+export interface MeetingLocation {
+  lat: number;
+  lng: number;
+  address?: string;
+  name?: string;
+}
+
+export interface MeetingMinutes {
+  id: string;
+  meetingId: string;
+  content: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+// Birthday/Reminder
+export interface Reminder {
+  id: string;
+  type: 'birthday' | 'payment_due' | 'loan_overdue' | 'meeting' | 'custom';
+  title: string;
+  message: string;
+  date: string;
+  memberId?: string;
+  memberName?: string;
+  isRecurring: boolean;
+  recurringType?: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  notified: boolean;
 }
 
 export interface Member {

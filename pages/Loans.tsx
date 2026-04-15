@@ -1,18 +1,19 @@
-
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Header } from '../components/Header';
 import { useData } from '../context/DataContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Banknote, ChevronRight, Plus, X, User, Calendar, Calculator, AlertCircle, Mic, Loader2 } from 'lucide-react';
+import { Banknote, ChevronRight, Plus, X, User, Calendar, Calculator, AlertCircle, Mic, MicOff, Loader2, Shield } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
+import { useRBAC } from '../hooks/useRBAC';
+import { PermissionGate, RoleBadge } from '../components/PermissionGate';
 import toast from 'react-hot-toast';
-import { GoogleGenAI, Type } from "@google/genai";
 
 export const Loans: React.FC = () => {
   const { loans, members, addLoan, repayLoan, isAIQuotaExceeded } = useData();
   const { t, language } = useLanguage();
-  const { currentUserRole } = useAuth();
+  const { currentUserRole, user } = useAuth();
+  const { can, isMemberOnly, isAnimatorOrHigher } = useRBAC();
   const [showAddModal, setShowAddModal] = useState(false);
   const [repayModalLoanId, setRepayModalLoanId] = useState<string | null>(null);
 
@@ -67,80 +68,117 @@ export const Loans: React.FC = () => {
     setDuration('12');
   };
 
+  // Voice state
+  const [isListening, setIsListening] = useState(false);
+
   const startVoiceFill = () => {
-    if (isAIQuotaExceeded) {
-        toast.error("Offline Mode: Voice unavailable");
-        return;
-    }
     // @ts-ignore
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-        toast.error("Voice not supported on this device");
-        return;
+      toast.error("Voice not supported. Use Chrome or Edge browser.");
+      return;
     }
 
     const recognition = new SpeechRecognition();
     recognition.lang = language === 'hi' ? 'hi-IN' : 'en-IN';
+    recognition.continuous = false;
+    recognition.interimResults = false;
     
-    toast('Listening... e.g., "5000 loan for Lakshmi"', { icon: '🎙️' });
-    
-    recognition.onresult = async (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        processVoiceCommand(transcript);
+    recognition.onstart = () => {
+      setIsListening(true);
+      toast('🎙️ Listening... e.g., "5000 loan for Lakshmi"', { duration: 3000 });
     };
-    recognition.start();
+    
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      console.log('Voice input:', transcript);
+      processVoiceCommand(transcript);
+    };
+    
+    recognition.onerror = (e: any) => {
+      console.error('Speech recognition error:', e.error);
+      switch (e.error) {
+        case 'not-allowed':
+        case 'permission-denied':
+          toast((t) => (
+            <div className="flex flex-col gap-1">
+              <span className="font-bold">🎤 Microphone Blocked</span>
+              <span className="text-xs">Click the lock icon in address bar → Allow microphone</span>
+            </div>
+          ), { duration: 5000 });
+          break;
+        case 'no-speech':
+          toast.error("No speech detected. Please try again.");
+          break;
+        case 'audio-capture':
+          toast.error("No microphone found. Please check your device.");
+          break;
+        case 'network':
+          toast.error("Network error. Voice requires internet.");
+          break;
+        default:
+          toast.error("Voice recognition failed. Please try again.");
+      }
+      setIsListening(false);
+    };
+    
+    recognition.onend = () => setIsListening(false);
+    
+    try {
+      recognition.start();
+    } catch (error) {
+      toast.error("Could not start voice recognition");
+      setIsListening(false);
+    }
   };
 
-  const processVoiceCommand = async (text: string) => {
-      if (!process.env.API_KEY) return;
-      setIsProcessingVoice(true);
+  // Local voice command processing (no API needed)
+  const processVoiceCommand = (text: string) => {
+    setIsProcessingVoice(true);
+    
+    try {
+      const lowerText = text.toLowerCase();
       
-      try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-          const memberList = members.map(m => `${m.name} (ID: ${m.id})`).join(', ');
-          
-          const prompt = `
-            Extract loan details from: "${text}".
-            Available Members: ${memberList}.
-            Return JSON: { 
-                "memberId": string (best matching ID from list or null), 
-                "principal": number, 
-                "duration": number (months, default 12 if not specified),
-                "interest": number (default 12 if not specified)
-            }
-          `;
-
-          const response = await ai.models.generateContent({
-              model: 'gemini-2.5-flash',
-              contents: prompt,
-              config: { 
-                  responseMimeType: "application/json",
-                  responseSchema: {
-                      type: Type.OBJECT,
-                      properties: {
-                          memberId: { type: Type.STRING, nullable: true },
-                          principal: { type: Type.NUMBER },
-                          duration: { type: Type.NUMBER },
-                          interest: { type: Type.NUMBER }
-                      }
-                  }
-              }
-          });
-
-          const result = JSON.parse(response.text);
-          
-          if (result) {
-              if (result.memberId) setSelectedMemberId(result.memberId);
-              if (result.principal) setPrincipal(result.principal.toString());
-              if (result.duration) setDuration(result.duration.toString());
-              if (result.interest) setInterestRate(result.interest.toString());
-              toast.success("Form Auto-filled!");
-          }
-      } catch (e) {
-          toast.error("Could not understand command");
-      } finally {
-          setIsProcessingVoice(false);
+      // Extract amount - look for numbers
+      const amountMatch = text.match(/(\d+)/);
+      if (amountMatch) {
+        setPrincipal(amountMatch[1]);
       }
+      
+      // Extract duration if mentioned
+      const durationMatch = lowerText.match(/(\d+)\s*(month|mahina|महीने)/);
+      if (durationMatch) {
+        setDuration(durationMatch[1]);
+      }
+      
+      // Extract interest rate if mentioned
+      const interestMatch = lowerText.match(/(\d+)\s*(%|percent|प्रतिशत)/);
+      if (interestMatch) {
+        setInterestRate(interestMatch[1]);
+      }
+      
+      // Try to find member name
+      let memberFound = false;
+      for (const member of members) {
+        const firstName = member.name.split(' ')[0].toLowerCase();
+        const fullName = member.name.toLowerCase();
+        if (lowerText.includes(firstName) || lowerText.includes(fullName)) {
+          setSelectedMemberId(member.id);
+          memberFound = true;
+          break;
+        }
+      }
+      
+      if (amountMatch) {
+        toast.success("Form auto-filled from voice!");
+      } else {
+        toast("Say amount and member name, e.g., '5000 for Lakshmi'", { icon: '💡' });
+      }
+    } catch (e) {
+      toast.error("Could not understand command");
+    } finally {
+      setIsProcessingVoice(false);
+    }
   };
 
   const handleRepay = () => {
@@ -153,7 +191,16 @@ export const Loans: React.FC = () => {
     setPenalty('');
   };
 
-  const activeLoans = loans.filter(l => l.status === 'Active');
+  // Filter loans based on role - Members can only see their own loans
+  const visibleLoans = useMemo(() => {
+    if (can('view_loans')) {
+      return loans; // Leaders and Animators can see all loans
+    }
+    // Members can only see their own loans
+    return loans.filter(l => l.memberId === user?.memberId);
+  }, [loans, can, user?.memberId]);
+
+  const activeLoans = visibleLoans.filter(l => l.status === 'Active');
   const totalOutstanding = activeLoans.reduce((sum, l) => sum + (l.totalRepayable - l.amountPaid), 0);
 
   return (
@@ -222,7 +269,7 @@ export const Loans: React.FC = () => {
                                 </div>
                             </div>
 
-                            {currentUserRole !== 'Member' && (
+                            <PermissionGate permission="record_repayment">
                                 <button 
                                     onClick={() => {
                                         setRepayModalLoanId(loan.id);
@@ -232,7 +279,7 @@ export const Loans: React.FC = () => {
                                 >
                                     {t('repayLoan')}
                                 </button>
-                            )}
+                            </PermissionGate>
                         </div>
                     );
                 })
@@ -240,15 +287,15 @@ export const Loans: React.FC = () => {
         </div>
       </div>
 
-      {/* FAB - Only for Leaders/Animators */}
-      {currentUserRole !== 'Member' && (
+      {/* FAB - Only for users with create_loan permission */}
+      <PermissionGate permission="create_loan">
         <button 
             onClick={() => setShowAddModal(true)}
             className="fixed bottom-24 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-orange-500 to-pink-600 text-white flex items-center justify-center shadow-2xl shadow-orange-900/50 font-bold active:scale-90 transition-transform hover:scale-105 z-50"
         >
             <Plus size={24} />
         </button>
-      )}
+      </PermissionGate>
 
       {/* Add Loan Modal */}
       <AnimatePresence>
@@ -272,9 +319,16 @@ export const Loans: React.FC = () => {
                     <h2 className="text-xl font-bold text-white">{t('createLoan')}</h2>
                     <button 
                         onClick={startVoiceFill}
-                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${isProcessingVoice ? 'bg-white text-black animate-pulse' : 'bg-blue-500/20 text-blue-400 hover:bg-blue-500 hover:text-white'}`}
+                        disabled={isListening || isProcessingVoice}
+                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                          isListening 
+                            ? 'bg-red-500 text-white animate-pulse' 
+                            : isProcessingVoice 
+                              ? 'bg-white text-black animate-pulse' 
+                              : 'bg-blue-500/20 text-blue-400 hover:bg-blue-500 hover:text-white'
+                        }`}
                     >
-                        {isProcessingVoice ? <Loader2 size={14} className="animate-spin" /> : <Mic size={16} />}
+                        {isProcessingVoice ? <Loader2 size={14} className="animate-spin" /> : isListening ? <MicOff size={14} /> : <Mic size={16} />}
                     </button>
                 </div>
                 <button onClick={() => setShowAddModal(false)} className="p-2 bg-white/5 rounded-full">

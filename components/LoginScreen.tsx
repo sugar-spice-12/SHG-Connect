@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Mail, ArrowRight, ShieldCheck, Lock, AlertCircle } from 'lucide-react';
+import { Mail, ArrowRight, ShieldCheck, Lock, AlertCircle, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
 export const LoginScreen: React.FC = () => {
-  const { login, verifyOtp } = useAuth();
+  const { login, verifyOtp, otpAttempts, isOtpBlocked, otpBlockedUntil } = useAuth();
 
   const [step, setStep] = useState<'email' | 'otp'>('email');
   const [email, setEmail] = useState('');
@@ -13,6 +13,7 @@ export const LoginScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [countdown, setCountdown] = useState(0);
+  const [blockCountdown, setBlockCountdown] = useState(0);
 
   // Countdown timer for resend OTP
   useEffect(() => {
@@ -21,6 +22,21 @@ export const LoginScreen: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [countdown]);
+
+  // Countdown timer for block duration
+  useEffect(() => {
+    if (isOtpBlocked && otpBlockedUntil) {
+      const updateBlockCountdown = () => {
+        const remaining = Math.max(0, Math.ceil((otpBlockedUntil - Date.now()) / 1000));
+        setBlockCountdown(remaining);
+      };
+      updateBlockCountdown();
+      const timer = setInterval(updateBlockCountdown, 1000);
+      return () => clearInterval(timer);
+    } else {
+      setBlockCountdown(0);
+    }
+  }, [isOtpBlocked, otpBlockedUntil]);
 
   // Validate email
   const isValidEmail = (email: string) => {
@@ -93,7 +109,13 @@ export const LoginScreen: React.FC = () => {
   const handleVerify = async () => {
     setError('');
     
-    if (otp.length !== 8) {
+    // Check if blocked
+    if (isOtpBlocked) {
+      setError("Too many failed attempts. Please wait before trying again.");
+      return;
+    }
+    
+    if (otp.length !== 6) {
       setError("Please enter the complete 6-digit OTP");
       toast.error("Enter 6-digit OTP");
       return;
@@ -252,6 +274,33 @@ export const LoginScreen: React.FC = () => {
                 <p className="text-white/40 text-xs mt-2">Check your inbox and spam folder</p>
               </div>
 
+              {/* Security Block Warning */}
+              {isOtpBlocked && blockCountdown > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="p-4 bg-red-500/20 border border-red-500/30 rounded-xl text-center"
+                >
+                  <Shield size={24} className="text-red-400 mx-auto mb-2" />
+                  <p className="text-red-200 text-sm font-medium">Account Temporarily Locked</p>
+                  <p className="text-red-300/70 text-xs mt-1">
+                    Too many failed attempts. Try again in{' '}
+                    <span className="font-bold text-red-300">
+                      {Math.floor(blockCountdown / 60)}:{(blockCountdown % 60).toString().padStart(2, '0')}
+                    </span>
+                  </p>
+                </motion.div>
+              )}
+
+              {/* Attempts Warning */}
+              {!isOtpBlocked && otpAttempts > 0 && otpAttempts < 5 && (
+                <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-center">
+                  <p className="text-yellow-200 text-xs">
+                    ⚠️ {5 - otpAttempts} attempt{5 - otpAttempts !== 1 ? 's' : ''} remaining before temporary lock
+                  </p>
+                </div>
+              )}
+
               <div className="flex justify-center">
                 <input 
                   type="text"
@@ -263,22 +312,26 @@ export const LoginScreen: React.FC = () => {
                   }}
                   onKeyPress={(e) => handleKeyPress(e, handleVerify)}
                   className="w-48 text-center text-3xl tracking-[0.3em] bg-transparent border-b-2 border-white/20 focus:border-blue-500 outline-none text-white py-2 font-mono"
-                  placeholder="••••••••"
-                  maxLength={8}
-                  disabled={isLoading}
+                  placeholder="••••••"
+                  maxLength={6}
+                  disabled={isLoading || isOtpBlocked}
                   autoFocus
                 />
               </div>
 
               <button 
                 onClick={handleVerify}
-                disabled={isLoading || otp.length !== 8}
+                disabled={isLoading || otp.length !== 6 || isOtpBlocked}
                 className="w-full h-12 bg-white text-black rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <>
                     <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                     Verifying...
+                  </>
+                ) : isOtpBlocked ? (
+                  <>
+                    <Shield size={18} /> Locked
                   </>
                 ) : (
                   <>
@@ -318,7 +371,11 @@ export const LoginScreen: React.FC = () => {
         </div>
 
         {/* Footer Info */}
-        <div className="mt-6 text-center">
+        <div className="mt-6 text-center space-y-2">
+          <div className="flex items-center justify-center gap-2 text-green-400/70">
+            <Shield size={14} />
+            <p className="text-xs">Protected with end-to-end encryption</p>
+          </div>
           <p className="text-xs text-white/30">
             By continuing, you agree to our Terms & Privacy Policy
           </p>

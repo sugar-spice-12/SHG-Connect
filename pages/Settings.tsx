@@ -3,9 +3,11 @@ import { Header } from '../components/Header';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
 import { Language } from '../translations';
-import { Check, Cloud, Download, RefreshCw, Shield, LogOut, User, Mail, Briefcase, Edit2, X, Save } from 'lucide-react';
+import { Check, Cloud, Download, RefreshCw, Shield, LogOut, User, Mail, Briefcase, Edit2, X, Save, Lock, Users, FileText, BarChart3 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
+import { useRBAC } from '../hooks/useRBAC';
+import { RoleBadge, AccessLevelIndicator } from '../components/PermissionGate';
 import toast from 'react-hot-toast';
 
 interface SettingsProps {
@@ -15,7 +17,8 @@ interface SettingsProps {
 export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
   const { language, setLanguage, t } = useLanguage();
   const { refreshData, exportData, isSyncing, syncStatus, lastSynced } = useData();
-  const { settings, updateSettings, user, logout, updateUser } = useAuth();
+  const { settings, updateSettings, user, logout, updateUser, switchRole } = useAuth();
+  const { role, roleInfo, getRoleLabel, can, isLeader, permissions } = useRBAC();
   
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editedName, setEditedName] = useState(user?.name || '');
@@ -161,6 +164,75 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
               <div className="flex items-center gap-3">
                 <User size={16} className="text-white/40" />
                 <span className="text-sm text-white/70">Member ID: {user?.memberId || user?.id || 'N/A'}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Role & Permissions Section */}
+        <div>
+          <h3 className="text-white/50 text-xs font-bold uppercase tracking-wider mb-4 pl-2">{t('roles')}</h3>
+          <div className="glass-panel rounded-2xl p-4 space-y-4">
+            {/* Current Role */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400">
+                  <Users size={20} />
+                </div>
+                <div>
+                  <h4 className="font-bold text-white text-sm">{t('yourRole')}</h4>
+                  <p className="text-[10px] text-white/40">{t('roleDescription')}</p>
+                </div>
+              </div>
+              <RoleBadge role={role} size="md" />
+            </div>
+
+            {/* Access Level Indicator */}
+            <AccessLevelIndicator showDetails={true} />
+
+            {/* Permission Highlights */}
+            <div className="pt-3 border-t border-white/10">
+              <p className="text-xs text-white/50 mb-3">{t('permissionsCount')}: {permissions.length}</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className={`flex items-center gap-2 p-2 rounded-lg ${can('view_members') ? 'bg-green-500/10 text-green-400' : 'bg-white/5 text-white/30'}`}>
+                  <Users size={14} />
+                  <span className="text-xs">{t('manageMembers')}</span>
+                </div>
+                <div className={`flex items-center gap-2 p-2 rounded-lg ${can('create_loan') ? 'bg-green-500/10 text-green-400' : 'bg-white/5 text-white/30'}`}>
+                  <Briefcase size={14} />
+                  <span className="text-xs">{t('manageLoans')}</span>
+                </div>
+                <div className={`flex items-center gap-2 p-2 rounded-lg ${can('start_meeting') ? 'bg-green-500/10 text-green-400' : 'bg-white/5 text-white/30'}`}>
+                  <FileText size={14} />
+                  <span className="text-xs">{t('manageMeetings')}</span>
+                </div>
+                <div className={`flex items-center gap-2 p-2 rounded-lg ${can('export_reports') ? 'bg-green-500/10 text-green-400' : 'bg-white/5 text-white/30'}`}>
+                  <BarChart3 size={14} />
+                  <span className="text-xs">{t('exportData')}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Role Switcher - For Demo/Testing */}
+            <div className="pt-4 border-t border-white/10">
+              <p className="text-xs text-white/50 mb-3">{t('changeRole')} (Demo)</p>
+              <div className="grid grid-cols-4 gap-2">
+                {(['Member', 'Animator', 'SHG Leader', 'CRP'] as const).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => {
+                      switchRole(r);
+                      toast.success(t('roleChanged'));
+                    }}
+                    className={`py-2 px-2 rounded-lg text-[10px] font-medium transition-all ${
+                      role === r 
+                        ? 'bg-primary text-white' 
+                        : 'bg-white/5 text-white/50 hover:bg-white/10'
+                    }`}
+                  >
+                    {r === 'SHG Leader' ? 'Leader' : r}
+                  </button>
+                ))}
               </div>
             </div>
           </div>

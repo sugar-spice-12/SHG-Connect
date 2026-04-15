@@ -2,10 +2,12 @@
 import React, { useState, useRef } from 'react';
 import { Header } from '../components/Header';
 import { useData } from '../context/DataContext';
+import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, Wallet, AlertCircle, CalendarCheck, TrendingUp, Edit2, Save, Camera, FileText, CreditCard, Trash2, Download, Upload } from 'lucide-react';
+import { Phone, Wallet, AlertCircle, CalendarCheck, TrendingUp, Edit2, Save, Camera, FileText, CreditCard, Trash2, Download, Upload, ShieldAlert, Eye, EyeOff } from 'lucide-react';
 import { AreaChart, Area, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { useLanguage } from '../context/LanguageContext';
+import { canViewDocuments, maskPhone, privacyNotice } from '../lib/privacy';
 import toast from 'react-hot-toast';
 
 interface MemberProfileProps {
@@ -17,7 +19,8 @@ const LOAN_COLORS = ['#10B981', '#374151'];
 
 export const MemberProfile: React.FC<MemberProfileProps> = ({ memberId, onBack }) => {
   const { members, transactions, updateMember, deleteMember, loans } = useData();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const { user, currentUserRole } = useAuth();
   const member = members.find(m => m.id === memberId);
   const memberTransactions = transactions.filter(t => t.memberId === memberId).slice(0, 5);
   
@@ -36,6 +39,11 @@ export const MemberProfile: React.FC<MemberProfileProps> = ({ memberId, onBack }
   const passbookInputRef = useRef<HTMLInputElement>(null);
 
   if (!member) return null;
+
+  // Privacy check - can current user view this member's sensitive data?
+  const currentUserId = user?.id || '';
+  const isOwnProfile = currentUserId === memberId;
+  const canViewSensitive = canViewDocuments(currentUserRole, currentUserId, memberId);
 
   // Generate savings data dynamically based on current balance for visualization
   const generateSavingsCurve = () => {
@@ -116,67 +124,114 @@ export const MemberProfile: React.FC<MemberProfileProps> = ({ memberId, onBack }
         exit={{ opacity: 0, y: 10 }}
         className="space-y-8"
     >
-        {/* Documents Section */}
+        {/* Documents Section - Privacy Protected */}
         <div>
           <h3 className="text-white/50 text-xs font-bold uppercase tracking-wider mb-3 ml-1">{t('documents')}</h3>
+          
+          {/* Privacy Notice for non-owners */}
+          {!canViewSensitive && (
+            <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-3">
+              <ShieldAlert size={18} className="text-amber-400 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-200/80">
+                {privacyNotice[language]}
+              </p>
+            </div>
+          )}
+          
           <div className="grid grid-cols-2 gap-4">
-             {/* Hidden Inputs */}
-             <input 
-                type="file" 
-                ref={aadhaarInputRef} 
-                hidden 
-                accept="image/*" 
-                onChange={(e) => handleFileUpload(e, 'aadhaarUrl')}
-             />
-             <input 
-                type="file" 
-                ref={passbookInputRef} 
-                hidden 
-                accept="image/*" 
-                onChange={(e) => handleFileUpload(e, 'passbookUrl')}
-             />
+             {/* Hidden Inputs - Only for own profile */}
+             {canViewSensitive && (
+               <>
+                 <input 
+                    type="file" 
+                    ref={aadhaarInputRef} 
+                    hidden 
+                    accept="image/*" 
+                    onChange={(e) => handleFileUpload(e, 'aadhaarUrl')}
+                 />
+                 <input 
+                    type="file" 
+                    ref={passbookInputRef} 
+                    hidden 
+                    accept="image/*" 
+                    onChange={(e) => handleFileUpload(e, 'passbookUrl')}
+                 />
+               </>
+             )}
 
+             {/* Aadhaar Card */}
              <div 
-                onClick={() => aadhaarInputRef.current?.click()}
-                className="glass-panel p-4 rounded-2xl flex flex-col items-center justify-center gap-3 hover:bg-white/5 cursor-pointer border border-dashed border-white/20 min-h-[120px] relative group"
+                onClick={() => canViewSensitive && aadhaarInputRef.current?.click()}
+                className={`glass-panel p-4 rounded-2xl flex flex-col items-center justify-center gap-3 border border-dashed border-white/20 min-h-[120px] relative group ${
+                  canViewSensitive ? 'hover:bg-white/5 cursor-pointer' : 'cursor-not-allowed opacity-60'
+                }`}
              >
-                {member.aadhaarUrl ? (
-                  <>
-                     <img src={member.aadhaarUrl} className="w-full h-20 object-cover rounded-lg opacity-70 group-hover:opacity-40 transition-opacity" />
-                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100">
-                        <Upload size={24} className="text-white" />
-                     </div>
-                  </>
+                {canViewSensitive ? (
+                  // Owner can see their documents
+                  member.aadhaarUrl ? (
+                    <>
+                       <img src={member.aadhaarUrl} className="w-full h-20 object-cover rounded-lg opacity-70 group-hover:opacity-40 transition-opacity" />
+                       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                          <Upload size={24} className="text-white" />
+                       </div>
+                    </>
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400">
+                      <CreditCard size={24} />
+                    </div>
+                  )
                 ) : (
-                  <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400">
-                    <CreditCard size={24} />
+                  // Others see locked icon
+                  <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center text-red-400">
+                    <EyeOff size={24} />
                   </div>
                 )}
                 <div className="text-center">
                    <p className="text-sm font-medium">{t('aadhaar')}</p>
-                   <p className="text-[10px] text-white/40">{member.aadhaarUrl ? 'Tap to change' : 'Tap to upload'}</p>
+                   <p className="text-[10px] text-white/40">
+                     {canViewSensitive 
+                       ? (member.aadhaarUrl ? 'Tap to change' : 'Tap to upload')
+                       : 'Protected'
+                     }
+                   </p>
                 </div>
              </div>
 
+             {/* Bank Passbook */}
              <div 
-                onClick={() => passbookInputRef.current?.click()}
-                className="glass-panel p-4 rounded-2xl flex flex-col items-center justify-center gap-3 hover:bg-white/5 cursor-pointer border border-dashed border-white/20 min-h-[120px] relative group"
+                onClick={() => canViewSensitive && passbookInputRef.current?.click()}
+                className={`glass-panel p-4 rounded-2xl flex flex-col items-center justify-center gap-3 border border-dashed border-white/20 min-h-[120px] relative group ${
+                  canViewSensitive ? 'hover:bg-white/5 cursor-pointer' : 'cursor-not-allowed opacity-60'
+                }`}
              >
-                {member.passbookUrl ? (
-                  <>
-                     <img src={member.passbookUrl} className="w-full h-20 object-cover rounded-lg opacity-70 group-hover:opacity-40 transition-opacity" />
-                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100">
-                        <Upload size={24} className="text-white" />
-                     </div>
-                  </>
+                {canViewSensitive ? (
+                  // Owner can see their documents
+                  member.passbookUrl ? (
+                    <>
+                       <img src={member.passbookUrl} className="w-full h-20 object-cover rounded-lg opacity-70 group-hover:opacity-40 transition-opacity" />
+                       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                          <Upload size={24} className="text-white" />
+                       </div>
+                    </>
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400">
+                      <FileText size={24} />
+                    </div>
+                  )
                 ) : (
-                  <div className="w-12 h-12 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400">
-                    <FileText size={24} />
+                  // Others see locked icon
+                  <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center text-red-400">
+                    <EyeOff size={24} />
                   </div>
                 )}
                 <div className="text-center">
                    <p className="text-sm font-medium">{t('passbook')}</p>
-                   <p className="text-[10px] text-white/40">{member.passbookUrl ? 'Tap to change' : 'Tap to upload'}</p>
+                   <p className="text-[10px] text-white/40">
+                     {canViewSensitive 
+                       ? (member.passbookUrl ? 'Tap to change' : 'Tap to upload')
+                       : 'Protected'
+                     }
+                   </p>
                 </div>
              </div>
           </div>

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- App Display Name -->
+    <key>CFBundleDisplayName</key>
+    <string>SHG Connect</string>
+    
+    <!-- Camera Permission -->
+    <key>NSCameraUsageDescription</key>
+    <string>SHG Connect needs camera access to take photos for member profiles and documents.</string>
+    
+    <!-- Photo Library Permission -->
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>SHG Connect needs photo library access to select images for member profiles.</string>
+    
+    <!-- Microphone Permission -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>SHG Connect needs microphone access for voice commands and AI assistant.</string>
+    
+    <!-- Speech Recognition Permission -->
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>SHG Connect uses speech recognition for voice commands.</string>
+    
+    <!-- Face ID Permission -->
+    <key>NSFaceIDUsageDescription</key>
+    <string>SHG Connect uses Face ID to secure your financial data.</string>
+    
+    <!-- Location Permission (if needed later) -->
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>SHG Connect may use your location for meeting check-ins.</string>
+    
+    <!-- Background Modes -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>fetch</string>
+        <string>remote-notification</string>
+    </array>
+    
+    <!-- Status Bar Style -->
+    <key>UIStatusBarStyle</key>
+    <string>UIStatusBarStyleLightContent</string>
+    <key>UIViewControllerBasedStatusBarAppearance</key>
+    <false/>
+    
+    <!-- Supported Orientations -->
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+    </array>
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    
+    <!-- App Transport Security -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <true/>
+    </dict>
+</dict>
+</plist>
