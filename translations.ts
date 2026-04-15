@@ -337,7 +337,6 @@ export const translations = {
     manageLoans: "Manage Loans",
     manageMeetings: "Manage Meetings",
     viewReports: "View Reports",
-    exportData: "Export Data",
     createAnnouncements: "Create Announcements",
     createPolls: "Create Polls",
     viewAuditLog: "View Audit Log",
@@ -738,7 +737,6 @@ export const translations = {
     manageLoans: "ऋण प्रबंधन",
     manageMeetings: "बैठक प्रबंधन",
     viewReports: "रिपोर्ट देखें",
-    exportData: "डेटा निर्यात",
     createAnnouncements: "घोषणाएं बनाएं",
     createPolls: "पोल बनाएं",
     viewAuditLog: "ऑडिट लॉग देखें"
@@ -1076,7 +1074,6 @@ export const translations = {
     manageLoans: "கடன்களை நிர்வகி",
     manageMeetings: "கூட்டங்களை நிர்வகி",
     viewReports: "அறிக்கைகளைப் பார்",
-    exportData: "தரவை ஏற்றுமதி செய்",
     createAnnouncements: "அறிவிப்புகளை உருவாக்கு",
     createPolls: "கருத்துக்கணிப்புகளை உருவாக்கு",
     viewAuditLog: "தணிக்கை பதிவைப் பார்"
@@ -1414,7 +1411,6 @@ export const translations = {
     manageLoans: "రుణాలను నిర్వహించండి",
     manageMeetings: "సమావేశాలను నిర్వహించండి",
     viewReports: "నివేదికలను చూడండి",
-    exportData: "డేటాను ఎగుమతి చేయండి",
     createAnnouncements: "ప్రకటనలు సృష్టించండి",
     createPolls: "పోల్స్ సృష్టించండి",
     viewAuditLog: "ఆడిట్ లాగ్ చూడండి"
@@ -1752,7 +1748,6 @@ export const translations = {
     manageLoans: "ಸಾಲಗಳನ್ನು ನಿರ್ವಹಿಸಿ",
     manageMeetings: "ಸಭೆಗಳನ್ನು ನಿರ್ವಹಿಸಿ",
     viewReports: "ವರದಿಗಳನ್ನು ವೀಕ್ಷಿಸಿ",
-    exportData: "ಡೇಟಾವನ್ನು ರಫ್ತು ಮಾಡಿ",
     createAnnouncements: "ಪ್ರಕಟಣೆಗಳನ್ನು ರಚಿಸಿ",
     createPolls: "ಪೋಲ್‌ಗಳನ್ನು ರಚಿಸಿ",
     viewAuditLog: "ಆಡಿಟ್ ಲಾಗ್ ವೀಕ್ಷಿಸಿ"
